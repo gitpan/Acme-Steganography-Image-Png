@@ -9,7 +9,7 @@ use Carp;
 
 @ISA = qw(Class::Accessor);
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 my @keys = qw(offset data section x y datum_length done filename_generator
 	      suffix);
@@ -118,6 +118,74 @@ sub make_image {
 sub calculate_datum_length {
   my $self = shift;
   $self->x * $self->y * 2;
+}
+
+package Acme::Steganography::Image::Png::RGB::556FS;
+
+use vars '@ISA';
+@ISA = 'Acme::Steganography::Image::Png::RGB::556';
+
+# Raw data in the low bits of a colour image, with Floyd-Steinberg dithering
+# to spread the errors around. Share and enjoy, share and enjoy.
+
+sub make_image {
+  my $self = shift;
+  # We get a copy to play with
+  my $raw = $self->raw;
+  my $img = new Imager;
+  my $next_row;
+
+  my $xsize = $self->x;
+  my $ysize = $self->y;
+
+  for (my $y = $ysize; $y-- > 0; ) {
+    # New row
+    my $this_row = $next_row;
+    undef $next_row;
+
+    for (my $x = $xsize; $x-- > 0; ) {
+      my $offset = $y * $xsize + $x;
+
+      # I'm not sure if I've got the algorithm correct.
+      my $datum = unpack 'x' . ($offset * 2) . 'n', $_[0];
+
+      my @rgb = unpack 'x' . ($offset * 3) . 'C3', $raw;
+      foreach (0..2) {
+	$rgb[$_] += $this_row->[$x + 1][$_] || 0;
+	# And this is most definitely an empirical hack, as there seem to be
+	# big systematic problems if the errors drive things outside the range
+	# 0-255
+	if ($rgb[$_] > 255) {
+	  $rgb[$_] = 255;
+	} elsif ($rgb[$_] < 0) {
+	  $rgb[$_] = 0;
+	}
+      }
+      # What we'd ideally have liked to output
+      my @rgb_ideal = @rgb;
+      # Pack 16 bits into the low bits of R G and B
+      $rgb[0] = ($rgb[0] & 0xE0) | $datum >> 11;
+      $rgb[1] = ($rgb[1] & 0xE0) | (($datum >> 6) & 0x1F);
+      $rgb[2] = ($rgb[2] & 0xC0) | ($datum & 0x3F);
+      substr($raw, $offset * 3, 3, pack 'C3', @rgb);
+
+      # Calculate the error and dither it
+      # 7 x
+      # 1 5 3
+      # Note that the backwards dithering is why we need the +1 on the co-ords.
+      foreach (0..2) {
+	my $error = ($rgb_ideal[$_] - $rgb[$_]) / 16;
+	$this_row->[$x][$_] += $error * 7;
+	$next_row->[$x + 2][$_] += $error * 3;
+	$next_row->[$x + 1][$_] += $error * 5;
+	$next_row->[$x][$_] += $error;
+      }
+    }
+  }
+
+  $img->read(data=>$raw, type => 'raw', xsize => $xsize,
+	     ysize => $ysize, datachannels => 3,interleave => 0);
+  $img;
 }
 
 package Acme::Steganography::Image::Png::RGB::323;
@@ -303,10 +371,10 @@ Acme::Steganography::Image::Png - hide data (badly) in Png images
   use Acme::Steganography::Image::Png;
 
   # Write your data out as RGB PNGs hidden in the image "Camouflage.jpg"
-  my $writer = Acme::Steganography::Image::Png::RGB::556->new();
+  my $writer = Acme::Steganography::Image::Png::RGB::556FS->new();
   $writer->data(\$data);
   my @filenames = $writer->write_images("Camouflage.jpg");
-  # Returns a list of the filenams it wrote to
+  # Returns a list of the filenames it wrote to
 
   # Then read them back.
   my $reread =
@@ -317,7 +385,7 @@ Acme::Steganography::Image::Png - hide data (badly) in Png images
 Acme::Steganography::Image::Png is extremely ineffective at hiding your
 secrets inside Png images.
 
-There are 3 implementations
+There are 4 implementations
 
 =over 4
 
@@ -338,6 +406,16 @@ Also stuffs your data into a sample image, using the low order bits of each
 colour. Only 1 byte of your data is stored in each pixel, 3 bits in Red and
 Blue, 2 in Green. To the untrained eye the image looks good. But the fact
 that it's PNG will make anyone suspicious about the contents.
+
+=item Acme::Steganography::Image::Png::RGB::556FS
+
+Stuffs your data into a sample image, using the low order bits of each colour.
+2 bytes of your data are stored in each pixel, 5 bits in Red and Green, 6 in
+Blue. Changing the value of pixels to store data is adding error to the image,
+in this case rather a lot of error. To attempt to conceal some of the
+graininess Floyd-Steinberg dithering is used to spread the errors around. It's
+not perfect, but effects are quite interesting, producing a reasonably nice
+dithered image.
 
 =back
 
