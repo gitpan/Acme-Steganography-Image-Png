@@ -1,0 +1,6 @@
+Changes
+MANIFEST
+Makefile.PL
+Png.pm
+t/grey.t
+META.yml                                 Module meta-data (added by MakeMaker)
