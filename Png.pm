@@ -9,7 +9,7 @@ use Carp;
 
 @ISA = qw(Class::Accessor);
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 my @keys = qw(offset data section x y datum_length done filename_generator
 	      suffix);
@@ -104,14 +104,11 @@ sub make_image {
 
   while ($offset--) {
     my $datum = unpack 'x' . ($offset * 2) . 'n', $_[0];
-    # I think that I could do the merging slightly more efficiently with
-    # string & and |
-    my ($red, $green, $blue) = unpack 'x' . ($offset * 3) . 'C3', $raw;
+    my $rgb = substr ($raw, $offset * 3, 3);
     # Pack 16 bits into the low bits of R G and B
-    $red = ($red & 0xE0) | $datum >> 11;
-    $green = ($green & 0xE0) | (($datum >> 6) & 0x1F);
-    $blue = ($blue & 0xC0) | ($datum & 0x3F);
-    substr($raw, $offset * 3, 3, pack 'C3', $red, $green, $blue);
+    $rgb &= "\xE0\xE0\xC0";
+    $rgb |= pack 'C3', $datum >> 11, ($datum >> 6) & 0x1F, $datum & 0x3F;
+    substr($raw, $offset * 3, 3, $rgb);
   }
   $img->read(data=>$raw, type => 'raw', xsize => $self->x,
 	     ysize => $self->y, datachannels => 3,interleave => 0);
@@ -155,14 +152,11 @@ sub make_image {
 
   while ($offset--) {
     my $datum = unpack "x$offset C", $_[0];
-    # I think that I could do the merging slightly more efficiently with
-    # string & and |
-    my ($red, $green, $blue) = unpack 'x' . ($offset * 3) . 'C3', $raw;
+    my $rgb = substr ($raw, $offset * 3, 3);
     # Pack 8 bits into the low bits of R G and B
-    $red = ($red & 0xF8) | $datum >> 5;
-    $green = ($green & 0xFC) | (($datum >> 3) & 0x3);
-    $blue = ($blue & 0xF8) | ($datum & 0x7);
-    substr($raw, $offset * 3, 3, pack 'C3', $red, $green, $blue);
+    $rgb &= "\xF8\xFC\xF8";
+    $rgb |= ("\x07\x03\x07" & pack 'C3', $datum >> 5, $datum >> 3, $datum);
+    substr($raw, $offset * 3, 3, $rgb);
   }
   $img->read(data=>$raw, type => 'raw', xsize => $self->x,
 	     ysize => $self->y, datachannels => 3,interleave => 0);
