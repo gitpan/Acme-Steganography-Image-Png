@@ -9,7 +9,7 @@ use Carp;
 
 @ISA = qw(Class::Accessor);
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 my @keys = qw(offset data section x y datum_length done filename_generator
 	      suffix);
@@ -52,29 +52,12 @@ use vars '@ISA';
 
 # Raw data as a greyscale PNG
 
-sub generate_next_image {
-    my ($self) = shift;
-    my $datum = $self->generate_header;
-    my $offset = $self->offset;
-    my $datum_length = $self->datum_length;
-    # Fill our blob of data to the correct length
-    my $grab = $datum_length - length $datum;
-    $datum .= substr ${$self->data()}, $offset, $grab;
-    $self->offset($offset + $grab);
-
-    if (length $datum < $datum_length) {
-      # Need to pad it. NUL is so uninspiring.
-      $datum .= "\0" x ($datum_length - length $datum);
-      $self->done(1);
-    } elsif (length ${$self->data()} == $self->offset) {
-      warn length $datum;
-    }
-    $self->section($self->section + 1);
-
-    my $img = new Imager;
-    $img->read(data=>$datum, type => 'raw', xsize => $self->x,
-	       ysize => $self->y, datachannels=>1, storechannels=>1, bits=>8);
-    $img;
+sub make_image {
+  my $self = shift;
+  my $img = new Imager;
+  $img->read(data=>$_[0], type => 'raw', xsize => $self->x,
+	     ysize => $self->y, datachannels=>1, storechannels=>1, bits=>8);
+  $img;
 }
 
 sub calculate_datum_length {
@@ -89,7 +72,156 @@ sub extract_payload {
   $datum;
 }
 
+package Acme::Steganography::Image::Png::RGB::556;
+
+use vars '@ISA';
+@ISA = 'Acme::Steganography::Image::Png::RGB';
+
+# Raw data in the low bits of a colour image
+
+Acme::Steganography::Image::Png->mk_accessors('raw');
+
+sub extract_payload {
+  my ($class, $img) = @_;
+  my ($raw, $data);
+  $img->write(data=> \$raw, type => 'raw');
+  my $end = length ($raw)/3;
+
+  for (my $offset = 0; $offset < $end; ++$offset) {
+    my ($red, $green, $blue) = unpack 'x' . ($offset * 3) . 'C3', $raw;
+    my $datum = (($red & 0x1F) << 11) | (($green & 0x1F) << 6) | ($blue & 0x3F);
+    $data .= pack 'n', $datum;
+  }
+  $data;
+}
+
+sub make_image {
+  my $self = shift;
+  # We get a copy to play with
+  my $raw = $self->raw;
+  my $offset = length ($raw)/3;
+  my $img = new Imager;
+
+  while ($offset--) {
+    my $datum = unpack 'x' . ($offset * 2) . 'n', $_[0];
+    # I think that I could do the merging slightly more efficiently with
+    # string & and |
+    my ($red, $green, $blue) = unpack 'x' . ($offset * 3) . 'C3', $raw;
+    # Pack 16 bits into the low bits of R G and B
+    $red = ($red & 0xE0) | $datum >> 11;
+    $green = ($green & 0xE0) | (($datum >> 6) & 0x1F);
+    $blue = ($blue & 0xC0) | ($datum & 0x3F);
+    substr($raw, $offset * 3, 3, pack 'C3', $red, $green, $blue);
+  }
+  $img->read(data=>$raw, type => 'raw', xsize => $self->x,
+	     ysize => $self->y, datachannels => 3,interleave => 0);
+  $img;
+}
+
+sub calculate_datum_length {
+  my $self = shift;
+  $self->x * $self->y * 2;
+}
+
+package Acme::Steganography::Image::Png::RGB::323;
+
+use vars '@ISA';
+@ISA = 'Acme::Steganography::Image::Png::RGB';
+
+# Raw data in the low bits of a colour image
+
+Acme::Steganography::Image::Png->mk_accessors('raw');
+
+sub extract_payload {
+  my ($class, $img) = @_;
+  my ($raw, $data);
+  $img->write(data=> \$raw, type => 'raw');
+  my $end = length ($raw)/3;
+
+  for (my $offset = 0; $offset < $end; ++$offset) {
+    my ($red, $green, $blue) = unpack 'x' . ($offset * 3) . 'C3', $raw;
+    my $datum = (($red & 0x7) << 5) | (($green & 0x3) << 3) | ($blue & 0x7);
+    $data .= chr $datum;
+  }
+  $data;
+}
+
+sub make_image {
+  my $self = shift;
+  # We get a copy to play with
+  my $raw = $self->raw;
+  my $offset = length ($raw)/3;
+  my $img = new Imager;
+
+  while ($offset--) {
+    my $datum = unpack "x$offset C", $_[0];
+    # I think that I could do the merging slightly more efficiently with
+    # string & and |
+    my ($red, $green, $blue) = unpack 'x' . ($offset * 3) . 'C3', $raw;
+    # Pack 8 bits into the low bits of R G and B
+    $red = ($red & 0xF8) | $datum >> 5;
+    $green = ($green & 0xFC) | (($datum >> 3) & 0x3);
+    $blue = ($blue & 0xF8) | ($datum & 0x7);
+    substr($raw, $offset * 3, 3, pack 'C3', $red, $green, $blue);
+  }
+  $img->read(data=>$raw, type => 'raw', xsize => $self->x,
+	     ysize => $self->y, datachannels => 3,interleave => 0);
+  $img;
+}
+
+sub calculate_datum_length {
+  my $self = shift;
+  $self->x * $self->y;
+}
+
+package Acme::Steganography::Image::Png::RGB;
+
+use vars '@ISA';
+@ISA = 'Acme::Steganography::Image::Png';
+
+# Raw data in the low bits of a colour image
+
+sub write_images {
+  my $self = shift;
+  my $victim = shift;
+
+  my $img = new Imager;
+  $img->open(file=>$victim, type=>'jpeg') or croak $img->errstr;
+
+  $self->x($img->getwidth());
+  $self->y($img->getheight());
+
+  my $raw;
+  $img->write(data=> \$raw, type => 'raw')
+    or croak $img->errstr;
+
+  $self->raw($raw);
+
+  $self->SUPER::write_images;
+}
 package Acme::Steganography::Image::Png;
+
+sub generate_next_image {
+    my ($self) = shift;
+    my $datum = $self->generate_header;
+    my $offset = $self->offset;
+    my $datum_length = $self->datum_length;
+    # Fill our blob of data to the correct length
+    my $grab = $datum_length - length $datum;
+    $datum .= substr ${$self->data()}, $offset, $grab;
+    $self->offset($offset + $grab);
+
+    if (length $datum < $datum_length) {
+      # Need to pad it. NUL is so uninspiring.
+      $datum .= "N" x ($datum_length - length $datum);
+      $self->done(1);
+    } elsif (length ${$self->data()} == $self->offset) {
+      warn length $datum;
+    }
+    $self->section($self->section + 1);
+
+    $self->make_image($datum);
+}
 
 sub new {
   my $class = shift;
@@ -176,23 +308,44 @@ Acme::Steganography::Image::Png - hide data (badly) in Png images
 
   use Acme::Steganography::Image::Png;
 
-  my $writer = Acme::Steganography::Image::Png::FlashingNeonSignGrey->new();
-  $writer->data(\$data); # Write your data out as greyscale PNGs
+  # Write your data out as RGB PNGs hidden in the image "Camouflage.jpg"
+  my $writer = Acme::Steganography::Image::Png::RGB::556->new();
+  $writer->data(\$data);
+  my @filenames = $writer->write_images("Camouflage.jpg");
   # Returns a list of the filenams it wrote to
-  my @filenames = $writer->write_images;
 
-  # Then read it back.
+  # Then read them back.
   my $reread =
-     Acme::Steganography::Image::Png::FlashingNeonSignGrey->read_files(@files);
+     Acme::Steganography::Image::Png::RGB::556->read_files(@files);
 
 =head1 DESCRIPTION
 
 Acme::Steganography::Image::Png is extremely ineffective at hiding your
 secrets inside Png images.
 
-Currently the only implementation is
-Acme::Steganography::Image::Png::FlashingNeonSignGrey which blatantly stuffs
-your data into greyscale PNG files with absolutely no attempt to hide it.
+There are 3 implementations
+
+=over 4
+
+=item Acme::Steganography::Image::Png::FlashingNeonSignGrey
+
+Blatantly stuffs your data into greyscale PNG files with absolutely no attempt
+to hide it.
+
+=item Acme::Steganography::Image::Png::RGB::556
+
+Stuffs your data into a sample image, using the low order bits of each colour.
+2 bytes of your data are stored in each pixel, 5 bits in Red and Green, 6 in
+Blue. It produces a rather grainy image.
+
+=item Acme::Steganography::Image::Png::RGB::323
+
+Also stuffs your data into a sample image, using the low order bits of each
+colour. Only 1 byte of your data is stored in each pixel, 3 bits in Red and
+Blue, 2 in Green. To the untrained eye the image looks good. But the fact
+that it's PNG will make anyone suspicious about the contents.
+
+=back
 
 Write your data out by calling C<write_images>
 

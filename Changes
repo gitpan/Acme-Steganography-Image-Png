@@ -3,3 +3,5 @@ Revision history for Perl extension Acme::Steganography::Image::Png.
 0.01  Fri Mar 11 22:01:05 2005
 	- original version; created by h2xs 1.19
 
+0.02  Sat Mar 12 13:33:13 GMT 2005
+	- Added RGB classes.
