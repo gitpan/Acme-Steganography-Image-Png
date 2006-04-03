@@ -9,7 +9,7 @@ use Carp;
 
 @ISA = qw(Class::Accessor);
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 my @keys = qw(offset data section x y datum_length done filename_generator
 	      suffix);
@@ -247,8 +247,14 @@ sub write_images {
   my $self = shift;
   my $victim = shift;
 
-  my $img = new Imager;
-  $img->open(file=>$victim, type=>'jpeg') or croak $img->errstr;
+  my $img;
+  if (ref($victim) && $victim->isa('Imager')) {
+    $img = $victim;
+  } else {
+    $img = new Imager;
+    $img->open(file=>$victim, type=>'jpeg') or croak $img->errstr;
+  }
+
 
   $self->x($img->getwidth());
   $self->y($img->getheight());
@@ -340,7 +346,7 @@ sub read_files {
   my %got;
   foreach my $file (@_) {
     my $img = new Imager;
-    $img->open(file => $file) or carp "Can't read '$file': $img->errstr";
+    $img->open(file => $file) or carp "Can't read '$file': " . $img->errstr;
     my $payload = $class->extract_payload($img);
     my $datum;
     my $section;
@@ -440,7 +446,7 @@ module. There are plans.
 
 =head1 AUTHOR
 
-Nicholas Clark <nick@talking.bollo.cx>, based on code written by JCHIN after
+Nicholas Clark, E<lt>nick@ccl4.orgE<gt>, based on code written by JCHIN after
 a conversation we had.
 
 =cut

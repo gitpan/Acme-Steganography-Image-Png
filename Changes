@@ -14,3 +14,8 @@ Revision history for Perl extension Acme::Steganography::Image::Png.
 	- Acme::Steganography::Image::Png::556FS uses Floyd-Steinberg dithering
 	  to spread around the errors caused by stuffing way too much data in.
 
+0.05  Mon Apr  3 15:20:09 BST 2006
+	- Actually give the error message on file open failure
+	- Patch from Simon Wistow to allow write_images to use an existing
+	  Imager object, which allowed support for inlining images within
+	  files.

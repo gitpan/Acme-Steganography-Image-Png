@@ -1,4 +1,5 @@
 Changes
+README
 MANIFEST
 Makefile.PL
 Png.pm
@@ -6,4 +7,5 @@ t/grey.t
 t/rgb.t
 t/Elsa
 t/Tester.pm
+t/rgb_inline_image.t
 META.yml                                 Module meta-data (added by MakeMaker)
