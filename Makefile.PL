@@ -10,5 +10,6 @@ WriteMakefile(
 			   },
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (# ABSTRACT_FROM => 'Png.pm', # retrieve abstract from module
-       AUTHOR     => 'Nicholas Clark <nick@talking.bollo.cx>') : ()),
+       AUTHOR     => 'Nicholas Clark <nick@ccl4.org>') : ()),
+    ((eval $ExtUtils::MakeMaker::VERSION > 6.30) ? (LICENSE => 'perl') : ()),
 );

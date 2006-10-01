@@ -9,7 +9,7 @@ use Carp;
 
 @ISA = qw(Class::Accessor);
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 my @keys = qw(offset data section x y datum_length done filename_generator
 	      suffix);
@@ -252,7 +252,7 @@ sub write_images {
     $img = $victim;
   } else {
     $img = new Imager;
-    $img->open(file=>$victim, type=>'jpeg') or croak $img->errstr;
+    $img->open(file=>$victim, type=>'jpeg') or croak($img->errstr);
   }
 
 
@@ -261,7 +261,7 @@ sub write_images {
 
   my $raw;
   $img->write(data=> \$raw, type => 'raw')
-    or croak $img->errstr;
+    or croak($img->errstr);
 
   $self->raw($raw);
 

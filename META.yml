@@ -1,13 +1,15 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         Acme-Steganography-Image-Png
-version:      0.05
-version_from: Png.pm
-installdirs:  site
-requires:
+--- #YAML:1.0
+name:                Acme-Steganography-Image-Png
+version:             0.06
+abstract:            ~
+license:             perl
+generated_by:        ExtUtils::MakeMaker version 6.30_02
+author:              Nicholas Clark <nick@ccl4.org>
+distribution_type:   module
+requires:     
     Class::Accessor:               0
     Imager:                        0
     Test::More:                    0
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.17
+meta-spec:
+    url: <http://module-build.sourceforge.net/META-spec-new.html>;
+    version: 1.1
